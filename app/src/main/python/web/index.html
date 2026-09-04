@@ -842,14 +842,40 @@ function renderCarousel() {
     const dots = document.querySelectorAll('#carousel-dots span');
     if (defaultIdx > 0) {
         // نمرّر الكاروسيل فعليًا لبطاقة الجهاز المفعّل، مش بس نتتبعها في
-        // الذاكرة من غير ما تظهر على الشاشة فعلاً
+        // الذاكرة من غير ما تظهر على الشاشة فعلاً. نستخدم الموقع الفعلي
+        // للبطاقة (offsetLeft) لا حساب "clientWidth × الرقم" - البطاقات
+        // 88% من العرض فقط، فالحساب البسيط كان يوصل لموضع غير دقيق.
         requestAnimationFrame(() => {
-            track.scrollLeft = defaultIdx * track.clientWidth;
+            const targetCard = track.querySelectorAll('.device-card')[defaultIdx];
+            if (targetCard) {
+                track.scrollLeft = targetCard.offsetLeft - (track.clientWidth - targetCard.offsetWidth) / 2;
+            }
         });
     }
     let scrollSettleTimer = null;
+    // نحدد البطاقة الحالية بموقعها الهندسي الفعلي على الشاشة (أقرب بطاقة
+    // لمنتصف منطقة العرض)، وليس بقسمة حسابية بسيطة (scrollLeft ÷ العرض
+    // الكامل) - القسمة البسيطة كانت تفترض أن كل بطاقة تأخذ 100% من العرض،
+    // بينما كل بطاقة فعليًا 88% فقط (تصميم مقصود يبقى كما هو) - فكانت
+    // القسمة أحيانًا "تخطئ" في تحديد الجهاز الصحيح أثناء السحب العادي.
+    function getCenteredCardIndex() {
+        const cards = track.querySelectorAll('.device-card');
+        const viewportCenter = track.scrollLeft + track.clientWidth / 2;
+        let closestIdx = 0;
+        let closestDistance = Infinity;
+        cards.forEach((card, i) => {
+            const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+            const distance = Math.abs(cardCenter - viewportCenter);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestIdx = i;
+            }
+        });
+        return closestIdx;
+    }
+
     track.addEventListener('scroll', () => {
-        const idx = Math.round(track.scrollLeft / track.clientWidth);
+        const idx = getCenteredCardIndex();
         dots.forEach((dot, i) => dot.classList.toggle('active', i === idx));
         if (devicesCache[idx]) currentCarouselDeviceId = devicesCache[idx].id;
 
